@@ -96,6 +96,22 @@ def get_filler_feedback(filler_count, fillers_per_minute, duration_seconds):
     else:
         return "Very high filler usage. Try pausing, breathing, and organizing your answer before speaking."
 
+def get_pace_feedback(words_per_minute):
+    if words_per_minute == 0:
+        return "Could not calculate speaking pace."
+
+    elif words_per_minute < 90:
+        return "Your speaking pace is quite slow. This may sound hesitant, so try speaking with a little more flow."
+
+    elif words_per_minute <= 150:
+        return "Good speaking pace. This range usually sounds clear and comfortable for interviews."
+
+    elif words_per_minute <= 180:
+        return "Slightly fast pace. It is still understandable, but slow down a little for better clarity."
+
+    else:
+        return "Very fast pace. Try slowing down so your answer sounds more confident and easier to follow."
+
 st.title("AI Interview Analyzer")
 
 @st.cache_resource
@@ -130,7 +146,8 @@ if uploaded_file:
             st.subheader("Transcript")
             st.write(transcript)
             total_words, filler_count, filler_percentage, fillers_per_minute, detected_fillers = analyze_transcript(transcript,duration_seconds)
-
+            duration_minutes = duration_seconds / 60 if duration_seconds > 0 else 1
+            words_per_minute = total_words / duration_minutes
             st.subheader("Communication Analysis")
 
             st.write("Total Words:", total_words)
@@ -146,3 +163,9 @@ if uploaded_file:
 
             feedback = get_filler_feedback(filler_count, fillers_per_minute, duration_seconds)
             st.info(feedback)
+            st.subheader("Speaking Pace Analysis")
+
+            st.write("Words Per Minute:", round(words_per_minute, 2))
+
+            pace_feedback = get_pace_feedback(words_per_minute)
+            st.info(pace_feedback)
