@@ -111,6 +111,43 @@ def get_pace_feedback(words_per_minute):
 
     else:
         return "Very fast pace. Try slowing down so your answer sounds more confident and easier to follow."
+def calculate_confidence_score(filler_percentage, words_per_minute, total_words):
+    score = 100
+
+    # Penalize high filler usage
+    if filler_percentage > 8:
+        score -= 25
+    elif filler_percentage > 5:
+        score -= 15
+    elif filler_percentage > 2:
+        score -= 8
+
+    # Penalize speaking too slow or too fast
+    if words_per_minute < 90:
+        score -= 15
+    elif words_per_minute > 180:
+        score -= 15
+    elif words_per_minute > 150:
+        score -= 8
+
+    # Penalize very short answers
+    if total_words < 20:
+        score -= 10
+
+    # Keep score between 0 and 100
+    score = max(0, min(score, 100))
+
+    return score
+
+def get_confidence_feedback(score):
+    if score >= 85:
+        return "Strong communication confidence. Your response sounds clear, controlled, and well-paced."
+    elif score >= 70:
+        return "Good confidence level. A few small improvements can make your answer even stronger."
+    elif score >= 50:
+        return "Moderate confidence. Try reducing fillers, improving structure, and maintaining a steady pace."
+    else:
+        return "Low confidence score. Practice slower, structured answers with fewer fillers and clearer delivery."
 
 st.title("AI Interview Analyzer")
 
@@ -169,3 +206,11 @@ if uploaded_file:
 
             pace_feedback = get_pace_feedback(words_per_minute)
             st.info(pace_feedback)
+            confidence_score = calculate_confidence_score(filler_percentage,words_per_minute,total_words)
+
+            st.subheader("Confidence Score")
+
+            st.metric("Score", f"{confidence_score}/100")
+
+            confidence_feedback = get_confidence_feedback(confidence_score)
+            st.info(confidence_feedback)
