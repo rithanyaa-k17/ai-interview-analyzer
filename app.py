@@ -149,6 +149,60 @@ def get_confidence_feedback(score):
     else:
         return "Low confidence score. Practice slower, structured answers with fewer fillers and clearer delivery."
 
+def analyze_star_structure(transcript):
+    text = transcript.lower()
+
+    situation_keywords = [
+        "during", "when", "while", "in my project", "in my internship",
+        "there was", "we had", "i faced", "problem", "challenge"
+    ]
+
+    task_keywords = [
+        "my responsibility", "my task", "i had to", "i needed to",
+        "i was responsible", "goal", "objective"
+    ]
+
+    action_keywords = [
+        "i did", "i worked", "i implemented", "i created", "i developed",
+        "i solved", "i used", "i analyzed", "i designed", "i improved"
+    ]
+
+    result_keywords = [
+    "as a result",
+    "this resulted in",
+    "this helped",
+    "because of this",
+    "the outcome was",
+    "we achieved",
+    "i achieved",
+    "it improved",
+    "improved by",
+    "reduced by",
+    "increased by",
+    "successfully",
+    "measurable outcome",
+    "final result"
+    ]
+
+    def check_presence(keywords):
+        return any(keyword in text for keyword in keywords)
+
+    star_result = {
+        "Situation": check_presence(situation_keywords),
+        "Task": check_presence(task_keywords),
+        "Action": check_presence(action_keywords),
+        "Result": check_presence(result_keywords)
+    }
+
+    score = sum(star_result.values()) * 25
+
+    missing_parts = [
+        part for part, present in star_result.items()
+        if not present
+    ]
+
+    return star_result, score, missing_parts
+
 st.title("AI Interview Analyzer")
 
 @st.cache_resource
@@ -214,3 +268,23 @@ if uploaded_file:
 
             confidence_feedback = get_confidence_feedback(confidence_score)
             st.info(confidence_feedback)
+            st.subheader("STAR Answer Analysis")
+
+            star_result, star_score, missing_parts = analyze_star_structure(transcript)
+
+            st.write("STAR Score:", f"{star_score}/100")
+
+            for part, present in star_result.items():
+                if present:
+                    st.success(f"{part}: Present")
+                else:
+                    st.warning(f"{part}: Missing")
+
+            if missing_parts:
+                st.info(
+                    "Suggestion: Try adding " +
+                    ", ".join(missing_parts) +
+                    " to make your answer more structured."
+                )
+            else:
+                st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
