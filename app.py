@@ -256,6 +256,43 @@ question_type = st.selectbox(
     ]
 )
 
+def detect_answer_type(transcript):
+    text = transcript.lower()
+
+    behavioral_keywords = [
+        "challenge", "faced", "situation", "responsibility",
+        "my task", "i had to", "i needed to", "as a result",
+        "learned", "handled", "solved", "improved"
+    ]
+
+    technical_keywords = [
+        "python", "java", "sql", "api", "database", "model",
+        "algorithm", "whisper", "ffmpeg", "streamlit",
+        "backend", "frontend", "deployment", "github",
+        "machine learning", "artificial intelligence"
+    ]
+
+    direct_keywords = [
+        "i used", "tools", "software", "technologies",
+        "libraries", "frameworks"
+    ]
+
+    behavioral_score = sum(1 for word in behavioral_keywords if word in text)
+    technical_score = sum(1 for word in technical_keywords if word in text)
+    direct_score = sum(1 for word in direct_keywords if word in text)
+
+    if behavioral_score >= 2:
+        return "Behavioral / Experience-based"
+
+    elif direct_score >= 1 and technical_score >= 1:
+        return "Direct Factual Answer"
+
+    elif technical_score >= 2:
+        return "Technical Explanation"
+
+    else:
+        return "General / Tell me about yourself"
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -282,6 +319,19 @@ if uploaded_file:
             model = load_whisper_model()
             result = model.transcribe(file_path, initial_prompt="Transcribe the speech exactly as spoken, including filler words like um, uh, like, actually, and pauses if spoken.")
             transcript = result["text"]
+            detected_answer_type = detect_answer_type(transcript)
+
+            st.subheader("Answer Type Check")
+            st.write("Selected Question Type:", question_type)
+            st.write("Detected Answer Type:", detected_answer_type)
+
+            if question_type != detected_answer_type:
+                st.warning(
+                    "The selected question type and detected answer type may not match. "
+                    "Some feedback sections may be less suitable for this answer."
+                )
+            else:
+                st.success("The selected question type seems suitable for this answer.")
             duration_seconds = 0
             if result.get("segments"):
                 duration_seconds = result["segments"][-1]["end"]
