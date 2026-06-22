@@ -319,28 +319,16 @@ if uploaded_file:
             model = load_whisper_model()
             result = model.transcribe(file_path, initial_prompt="Transcribe the speech exactly as spoken, including filler words like um, uh, like, actually, and pauses if spoken.")
             transcript = result["text"]
-            detected_answer_type = detect_answer_type(transcript)
-
-            st.subheader("Answer Type Check")
-            st.write("Selected Question Type:", question_type)
-            st.write("Detected Answer Type:", detected_answer_type)
-
-            if question_type != detected_answer_type:
-                st.warning(
-                    "The selected question type and detected answer type may not match. "
-                    "Some feedback sections may be less suitable for this answer."
-                )
-            else:
-                st.success("The selected question type seems suitable for this answer.")
             duration_seconds = 0
             if result.get("segments"):
                 duration_seconds = result["segments"][-1]["end"]
+            detected_answer_type = detect_answer_type(transcript)
             st.subheader("Transcript")
             st.write(transcript)
             total_words, filler_count, filler_percentage, fillers_per_minute, detected_fillers = analyze_transcript(transcript,duration_seconds)
             duration_minutes = duration_seconds / 60 if duration_seconds > 0 else 1
             words_per_minute = total_words / duration_minutes
-            st.subheader("Communication Analysis")
+            st.subheader("Universal Communication Analysis")
 
             st.write("Total Words:", total_words)
             st.write("Approx Duration:", round(duration_seconds, 2), "seconds")
@@ -352,7 +340,6 @@ if uploaded_file:
                 st.write("Detected Fillers:", detected_fillers)
             else:
                 st.success("No common filler words detected in the transcript.")
-
             feedback = get_filler_feedback(filler_count, fillers_per_minute, duration_seconds)
             st.info(feedback)
             st.subheader("Speaking Pace Analysis")
@@ -369,6 +356,17 @@ if uploaded_file:
 
             confidence_feedback = get_confidence_feedback(confidence_score)
             st.info(confidence_feedback)
+            st.subheader("Answer Type Check")
+            st.write("Selected Question Type:", question_type)
+            st.write("Detected Answer Type:", detected_answer_type)
+
+            if question_type != detected_answer_type:
+                st.warning(
+                    "The selected question type and detected answer type may not match. "
+                    "Some feedback sections may be less suitable for this answer."
+                )
+            else:
+                st.success("The selected question type seems suitable for this answer.")
             st.subheader("Question-Specific Analysis")
 
             if question_type == "Behavioral / Experience-based":
