@@ -245,7 +245,16 @@ def extract_skills(transcript):
 
 st.title("AI Interview Analyzer")
 
-
+question_type = st.selectbox(
+    "Select Interview Question Type",
+    [
+        "General / Tell me about yourself",
+        "Behavioral / Experience-based",
+        "Project Explanation",
+        "Technical Explanation",
+        "Direct Factual Answer"
+    ]
+)
 
 @st.cache_resource
 def load_whisper_model():
@@ -310,26 +319,34 @@ if uploaded_file:
 
             confidence_feedback = get_confidence_feedback(confidence_score)
             st.info(confidence_feedback)
-            st.subheader("STAR Answer Analysis")
+            st.subheader("Question-Specific Analysis")
 
-            star_result, star_score, missing_parts = analyze_star_structure(transcript)
+            if question_type == "Behavioral / Experience-based":
+                st.write("Behavioral answers are evaluated using the STAR framework.")
 
-            st.write("STAR Score:", f"{star_score}/100")
+                star_result, star_score, missing_parts = analyze_star_structure(transcript)
 
-            for part, present in star_result.items():
-                if present:
-                    st.success(f"{part}: Present")
+                st.write("STAR Score:", f"{star_score}/100")
+
+                for part, present in star_result.items():
+                    if present:
+                        st.success(f"{part}: Present")
+                    else:
+                        st.warning(f"{part}: Missing")
+
+                if missing_parts:
+                    st.info(
+                        "Suggestion: Try adding " +
+                        ", ".join(missing_parts) +
+                        " to make your answer more structured."
+                    )
                 else:
-                    st.warning(f"{part}: Missing")
+                    st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
 
-            if missing_parts:
-                st.info(
-                    "Suggestion: Try adding " +
-                    ", ".join(missing_parts) +
-                    " to make your answer more structured."
-                )
             else:
-                st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
+                st.info(
+                    "STAR analysis is not applied for this question type because not every interview answer needs Situation, Task, Action, and Result."
+                )
             st.subheader("Skill Extraction")
 
             detected_skills = extract_skills(transcript)
