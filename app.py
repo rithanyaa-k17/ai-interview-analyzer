@@ -203,7 +203,49 @@ def analyze_star_structure(transcript):
 
     return star_result, score, missing_parts
 
+def extract_skills(transcript):
+    skill_keywords = {
+        "Python": ["python"],
+        "Java": ["java"],
+        "C++": ["c++", "cpp"],
+        "C": [" c "],
+        "JavaScript": ["javascript", "js"],
+        "HTML": ["html"],
+        "CSS": ["css"],
+        "SQL": ["sql"],
+        "DBMS": ["dbms", "database"],
+        "Machine Learning": ["machine learning", "ml"],
+        "Artificial Intelligence": ["artificial intelligence", "ai"],
+        "Deep Learning": ["deep learning"],
+        "NLP": ["nlp", "natural language processing"],
+        "Speech-to-Text": ["speech to text", "speech-to-text", "transcription"],
+        "Whisper": ["whisper"],
+        "FFmpeg": ["ffmpeg"],
+        "Streamlit": ["streamlit"],
+        "Flask": ["flask"],
+        "FastAPI": ["fastapi", "fast api"],
+        "React": ["react"],
+        "Git": ["git"],
+        "GitHub": ["github"],
+        "REST API": ["rest api", "api"],
+        "Data Analysis": ["data analysis"],
+        "Anomaly Detection": ["anomaly detection"]
+    }
+
+    text = transcript.lower()
+    detected_skills = []
+
+    for skill, keywords in skill_keywords.items():
+        for keyword in keywords:
+            if keyword in text:
+                detected_skills.append(skill)
+                break
+
+    return detected_skills
+
 st.title("AI Interview Analyzer")
+
+
 
 @st.cache_resource
 def load_whisper_model():
@@ -288,3 +330,13 @@ if uploaded_file:
                 )
             else:
                 st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
+            st.subheader("Skill Extraction")
+
+            detected_skills = extract_skills(transcript)
+
+            if detected_skills:
+                st.write("Detected Skills:")
+                for skill in detected_skills:
+                    st.success(skill)
+            else:
+                st.info("No major technical skills detected in the transcript.") 
