@@ -256,13 +256,35 @@ question_type = st.selectbox(
     ]
 )
 
+def analyze_direct_answer(transcript, detected_skills, total_words):
+    if total_words <= 20:
+        length_feedback = "Concise answer. Good for direct factual questions."
+    elif total_words <= 45:
+        length_feedback = "Good answer length. It gives enough detail without being too long."
+    else:
+        length_feedback = "This answer may be too long for a direct factual question. Try making it shorter and more specific."
+
+    if detected_skills:
+        skill_feedback = "Good. Your answer mentions specific tools or technologies."
+    else:
+        skill_feedback = "Your answer does not mention clear tools or technologies. Try naming the exact software, framework, model, database, or library used."
+
+    if total_words <= 45 and detected_skills:
+        overall_feedback = "Strong direct answer. It is specific, concise, and relevant."
+    elif total_words > 45 and detected_skills:
+        overall_feedback = "The answer includes useful technical details, but it can be made more concise."
+    else:
+        overall_feedback = "Try making the answer more specific by directly naming the tools or technologies used."
+
+    return length_feedback, skill_feedback, overall_feedback
+
 def detect_answer_type(transcript):
     text = transcript.lower()
 
     behavioral_keywords = [
         "challenge", "faced", "situation", "responsibility",
         "my task", "i had to", "i needed to", "as a result",
-        "learned", "handled", "solved", "improved"
+        "handled", "solved", "improved"
     ]
 
     technical_keywords = [
@@ -273,8 +295,9 @@ def detect_answer_type(transcript):
     ]
 
     direct_keywords = [
-        "i used", "tools", "software", "technologies",
-        "libraries", "frameworks"
+        "i used", "i use", "tools", "tool", "software",
+        "technologies", "technology", "libraries", "library",
+        "frameworks", "framework", "model", "database"
     ]
 
     behavioral_score = sum(1 for word in behavioral_keywords if word in text)
@@ -284,7 +307,7 @@ def detect_answer_type(transcript):
     if behavioral_score >= 2:
         return "Behavioral / Experience-based"
 
-    elif direct_score >= 1 and technical_score >= 1:
+    elif direct_score >= 1:
         return "Direct Factual Answer"
 
     elif technical_score >= 2:
@@ -292,7 +315,7 @@ def detect_answer_type(transcript):
 
     else:
         return "General / Tell me about yourself"
-
+    
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -367,6 +390,8 @@ if uploaded_file:
                 )
             else:
                 st.success("The selected question type seems suitable for this answer.")
+            detected_skills = extract_skills(transcript)
+
             st.subheader("Question-Specific Analysis")
 
             if question_type == "Behavioral / Experience-based":
@@ -391,14 +416,29 @@ if uploaded_file:
                 else:
                     st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
 
+            elif question_type == "Direct Factual Answer":
+                st.write("Direct factual answers are evaluated for conciseness, specificity, and relevance.")
+
+                length_feedback, skill_feedback, overall_feedback = analyze_direct_answer(
+                    transcript,
+                    detected_skills,
+                    total_words
+                )
+
+                st.write("Answer Length:", total_words, "words")
+                st.info(length_feedback)
+                st.info(skill_feedback)
+                st.success(overall_feedback)
+
             else:
                 st.info(
-                    "STAR analysis is not applied for this question type because not every interview answer needs Situation, Task, Action, and Result."
+                    "No specialized analysis is applied for this question type yet. "
+                    "Universal communication analysis and skill extraction are still shown."
                 )
+
             st.subheader("Skill Extraction")
 
-            detected_skills = extract_skills(transcript)
-
+            
             if detected_skills:
                 st.write("Detected Skills:")
                 for skill in detected_skills:
