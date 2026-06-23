@@ -294,11 +294,22 @@ def detect_answer_type(transcript):
         "designed to", "created"
     ]
 
+    technical_explanation_keywords = [
+    "how", "why", "works", "working", "process", "pipeline",
+    "because", "used for", "responsible for", "converts",
+    "handles", "connects", "stores", "retrieves"
+]
+
     technical_keywords = [
         "python", "java", "sql", "api", "database", "model",
         "algorithm", "whisper", "ffmpeg", "streamlit",
         "backend", "frontend", "deployment", "github",
         "machine learning", "artificial intelligence"
+    ]
+
+    project_connection_keywords = [
+    "in my project", "in this project", "in my app", "in this app",
+    "my project", "my app", "the app", "the system"
     ]
 
     direct_keywords = [
@@ -311,12 +322,19 @@ def detect_answer_type(transcript):
     project_score = sum(1 for word in project_keywords if word in text)
     technical_score = sum(1 for word in technical_keywords if word in text)
     direct_score = sum(1 for word in direct_keywords if word in text)
-
+    project_connection_score = sum(1 for word in project_connection_keywords if word in text)
+    technical_explanation_score = sum(1 for word in technical_explanation_keywords if word in text)
     if behavioral_score >= 2:
         return "Behavioral / Experience-based"
 
     elif project_score >= 2 and technical_score >= 1:
         return "Project Explanation"
+
+    elif technical_explanation_score >= 1 and technical_score >= 1:
+        return "Technical Explanation"
+
+    elif technical_score >= 1 and project_connection_score >= 1:
+        return "Technical Explanation"
 
     elif direct_score >= 1 and project_score < 2:
         return "Direct Factual Answer"
@@ -326,7 +344,6 @@ def detect_answer_type(transcript):
 
     else:
         return "General / Tell me about yourself"
-
 def analyze_project_explanation(transcript):
     text = transcript.lower()
 
@@ -374,6 +391,56 @@ def analyze_project_explanation(transcript):
     ]
 
     return project_result, score, missing_parts
+
+def analyze_technical_explanation(transcript):
+    text = transcript.lower()
+
+    concept_keywords = [
+        "is used", "it is", "it helps", "it allows", "it means",
+        "used for", "responsible for", "works as"
+    ]
+
+    reason_keywords = [
+        "because", "why", "needed", "required", "so that",
+        "in order to", "helps to", "useful for"
+    ]
+
+    flow_keywords = [
+        "first", "then", "after that", "finally", "step",
+        "process", "flow", "pipeline", "input", "output"
+    ]
+
+    project_connection_keywords = [
+        "in my project", "in this project", "in my app", "in this app",
+        "the app", "the system", "uploaded audio", "transcript",
+        "user", "file"
+    ]
+
+    technical_terms = [
+        "python", "streamlit", "whisper", "ffmpeg", "sqlite",
+        "database", "api", "model", "audio", "transcription",
+        "backend", "frontend", "flask", "request", "response"
+    ]
+
+    def check_presence(keywords):
+        return any(keyword in text for keyword in keywords)
+
+    technical_result = {
+        "Concept Explanation": check_presence(concept_keywords),
+        "Reason / Purpose": check_presence(reason_keywords),
+        "Step-by-step Flow": check_presence(flow_keywords),
+        "Project Connection": check_presence(project_connection_keywords),
+        "Technical Terms": check_presence(technical_terms)
+    }
+
+    score = sum(technical_result.values()) * 20
+
+    missing_parts = [
+        part for part, present in technical_result.items()
+        if not present
+    ]
+
+    return technical_result, score, missing_parts
 
 @st.cache_resource
 def load_whisper_model():
@@ -510,7 +577,33 @@ if uploaded_file:
                     )
                 else:
                     st.success("Great project explanation! It covers purpose, tools, features, contribution, and outcome.")
+            elif question_type == "Technical Explanation":
+                st.write(
+                    "Technical explanations are evaluated for concept clarity, purpose, flow, "
+                    "project connection, and use of technical terms."
+                )
 
+                technical_result, technical_score, missing_technical_parts = analyze_technical_explanation(transcript)
+
+                st.write("Technical Explanation Score:", f"{technical_score}/100")
+
+                for part, present in technical_result.items():
+                    if present:
+                        st.success(f"{part}: Present")
+                    else:
+                        st.warning(f"{part}: Missing")
+
+                if missing_technical_parts:
+                    st.info(
+                        "Suggestion: Try adding " +
+                        ", ".join(missing_technical_parts) +
+                        " to make your technical explanation clearer."
+                    )
+                else:
+                    st.success(
+                        "Strong technical explanation! Your answer explains the concept, purpose, flow, "
+                        "and project relevance clearly."
+                    )
             else:
                 st.info(
                     "No specialized analysis is applied for this question type yet. "
