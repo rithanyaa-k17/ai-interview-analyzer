@@ -287,6 +287,13 @@ def detect_answer_type(transcript):
         "handled", "solved", "improved"
     ]
 
+    project_keywords = [
+        "project", "app", "application", "built", "developed",
+        "implemented", "feature", "features", "upload",
+        "transcribe", "analyze", "feedback", "helps", "users",
+        "designed to", "created"
+    ]
+
     technical_keywords = [
         "python", "java", "sql", "api", "database", "model",
         "algorithm", "whisper", "ffmpeg", "streamlit",
@@ -301,13 +308,17 @@ def detect_answer_type(transcript):
     ]
 
     behavioral_score = sum(1 for word in behavioral_keywords if word in text)
+    project_score = sum(1 for word in project_keywords if word in text)
     technical_score = sum(1 for word in technical_keywords if word in text)
     direct_score = sum(1 for word in direct_keywords if word in text)
 
     if behavioral_score >= 2:
         return "Behavioral / Experience-based"
 
-    elif direct_score >= 1:
+    elif project_score >= 2 and technical_score >= 1:
+        return "Project Explanation"
+
+    elif direct_score >= 1 and project_score < 2:
         return "Direct Factual Answer"
 
     elif technical_score >= 2:
@@ -315,7 +326,55 @@ def detect_answer_type(transcript):
 
     else:
         return "General / Tell me about yourself"
-    
+
+def analyze_project_explanation(transcript):
+    text = transcript.lower()
+
+    problem_keywords = [
+        "problem", "purpose", "aim", "goal", "helps", "designed to",
+        "built to", "used to", "solve"
+    ]
+
+    tech_stack_keywords = [
+        "python", "streamlit", "flask", "sqlite", "whisper", "ffmpeg",
+        "html", "css", "javascript", "api", "database", "github"
+    ]
+
+    feature_keywords = [
+        "feature", "upload", "transcribe", "analyze", "detect",
+        "score", "search", "store", "display", "dashboard"
+    ]
+
+    contribution_keywords = [
+        "i built", "i developed", "i implemented", "i created",
+        "i added", "i designed", "my role", "my contribution"
+    ]
+
+    outcome_keywords = [
+        "as a result", "this helps", "this helped", "successfully",
+        "improves", "improved", "useful", "benefit", "outcome"
+    ]
+
+    def check_presence(keywords):
+        return any(keyword in text for keyword in keywords)
+
+    project_result = {
+        "Problem / Purpose": check_presence(problem_keywords),
+        "Tech Stack": check_presence(tech_stack_keywords),
+        "Features": check_presence(feature_keywords),
+        "My Contribution": check_presence(contribution_keywords),
+        "Outcome / Impact": check_presence(outcome_keywords)
+    }
+
+    score = sum(project_result.values()) * 20
+
+    missing_parts = [
+        part for part, present in project_result.items()
+        if not present
+    ]
+
+    return project_result, score, missing_parts
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -429,6 +488,28 @@ if uploaded_file:
                 st.info(length_feedback)
                 st.info(skill_feedback)
                 st.success(overall_feedback)
+
+            elif question_type == "Project Explanation":
+                st.write("Project explanations are evaluated for problem clarity, tech stack, features, contribution, and outcome.")
+
+                project_result, project_score, missing_project_parts = analyze_project_explanation(transcript)
+
+                st.write("Project Explanation Score:", f"{project_score}/100")
+
+                for part, present in project_result.items():
+                    if present:
+                        st.success(f"{part}: Present")
+                    else:
+                        st.warning(f"{part}: Missing")
+
+                if missing_project_parts:
+                    st.info(
+                        "Suggestion: Try adding " +
+                        ", ".join(missing_project_parts) +
+                        " to make your project explanation stronger."
+                    )
+                else:
+                    st.success("Great project explanation! It covers purpose, tools, features, contribution, and outcome.")
 
             else:
                 st.info(
