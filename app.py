@@ -442,6 +442,57 @@ def analyze_technical_explanation(transcript):
 
     return technical_result, score, missing_parts
 
+def analyze_self_intro(transcript):
+    text = transcript.lower()
+
+    background_keywords = [
+        "i am", "i'm", "my name", "student", "studying",
+        "computer science", "cse", "engineering", "college"
+    ]
+
+    skills_keywords = [
+        "python", "java", "sql", "machine learning", "ai",
+        "web development", "full stack", "frontend", "backend",
+        "problem solving", "communication"
+    ]
+
+    project_keywords = [
+        "project", "built", "developed", "worked on",
+        "implemented", "created", "interview analyzer",
+        "anomaly detection", "skillswap"
+    ]
+
+    interest_keywords = [
+        "interested in", "passionate about", "i enjoy",
+        "i would like", "i want to", "career", "domain",
+        "software", "ai", "machine learning"
+    ]
+
+    closing_keywords = [
+        "looking forward", "opportunity", "contribute",
+        "grow", "learn", "improve", "develop my skills"
+    ]
+
+    def check_presence(keywords):
+        return any(keyword in text for keyword in keywords)
+
+    intro_result = {
+        "Background / Education": check_presence(background_keywords),
+        "Skills": check_presence(skills_keywords),
+        "Projects": check_presence(project_keywords),
+        "Career Interest": check_presence(interest_keywords),
+        "Closing / Goal": check_presence(closing_keywords)
+    }
+
+    score = sum(intro_result.values()) * 20
+
+    missing_parts = [
+        part for part, present in intro_result.items()
+        if not present
+    ]
+
+    return intro_result, score, missing_parts
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -603,6 +654,32 @@ if uploaded_file:
                     st.success(
                         "Strong technical explanation! Your answer explains the concept, purpose, flow, "
                         "and project relevance clearly."
+                    )
+            elif question_type == "General / Tell me about yourself":
+                st.write(
+                    "Self-introduction answers are evaluated for background, skills, projects, "
+                    "career interest, and a clear closing goal."
+                )
+
+                intro_result, intro_score, missing_intro_parts = analyze_self_intro(transcript)
+
+                st.write("Self Introduction Score:", f"{intro_score}/100")
+
+                for part, present in intro_result.items():
+                    if present:
+                        st.success(f"{part}: Present")
+                    else:
+                        st.warning(f"{part}: Missing")
+
+                if missing_intro_parts:
+                    st.info(
+                        "Suggestion: Try adding " +
+                        ", ".join(missing_intro_parts) +
+                        " to make your self-introduction stronger."
+                    )
+                else:
+                    st.success(
+                        "Strong self-introduction! Your answer covers your background, skills, projects, interests, and goal."
                     )
             else:
                 st.info(
