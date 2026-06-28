@@ -493,6 +493,64 @@ def analyze_self_intro(transcript):
 
     return intro_result, score, missing_parts
 
+def generate_final_summary(
+    filler_percentage,
+    words_per_minute,
+    confidence_score,
+    detected_skills,
+    question_type
+):
+    strengths = []
+    improvements = []
+
+    # Filler-based feedback
+    if filler_percentage <= 2:
+        strengths.append("Low filler usage, which makes the answer sound clean and controlled.")
+    elif filler_percentage <= 5:
+        strengths.append("Filler usage is reasonable and does not strongly affect clarity.")
+    else:
+        improvements.append("Reduce filler words by pausing briefly instead of using repeated fillers.")
+
+    # Pace-based feedback
+    if 90 <= words_per_minute <= 150:
+        strengths.append("Speaking pace is comfortable and suitable for interviews.")
+    elif words_per_minute < 90:
+        improvements.append("Try speaking with slightly more flow, as the pace may sound slow or hesitant.")
+    else:
+        improvements.append("Slow down slightly so the answer sounds clearer and easier to follow.")
+
+    # Confidence score feedback
+    if confidence_score >= 85:
+        strengths.append("Overall communication confidence is strong.")
+    elif confidence_score >= 70:
+        strengths.append("Overall confidence is good, with only minor improvements needed.")
+    else:
+        improvements.append("Improve confidence by giving more structured, steady, and specific answers.")
+
+    # Skill extraction feedback
+    if detected_skills:
+        strengths.append("Relevant technical skills or tools were mentioned in the answer.")
+    else:
+        improvements.append("Mention specific tools, technologies, or skills where relevant.")
+
+    # Question-type feedback
+    if question_type == "Behavioral / Experience-based":
+        improvements.append("For behavioral answers, make sure the response clearly covers Situation, Task, Action, and Result.")
+    elif question_type == "Project Explanation":
+        improvements.append("For project explanations, clearly mention the problem, tech stack, features, your contribution, and outcome.")
+    elif question_type == "Technical Explanation":
+        improvements.append("For technical explanations, include what it is, why it is used, and how it works in your project.")
+    elif question_type == "Direct Factual Answer":
+        improvements.append("For direct factual answers, keep the response concise and name exact tools or technologies.")
+    elif question_type == "General / Tell me about yourself":
+        improvements.append("For self-introductions, include background, skills, projects, interests, and a clear closing goal.")
+
+    # Avoid too many suggestions
+    strengths = strengths[:3]
+    improvements = improvements[:3]
+
+    return strengths, improvements
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -696,3 +754,22 @@ if uploaded_file:
                     st.success(skill)
             else:
                 st.info("No major technical skills detected in the transcript.") 
+            st.subheader("Final Summary")
+
+            strengths, improvements = generate_final_summary(
+                filler_percentage,
+                words_per_minute,
+                confidence_score,
+                detected_skills,
+                question_type
+            )
+
+            st.write("Strengths")
+
+            for strength in strengths:
+                st.success(strength)
+
+            st.write("Areas to Improve")
+
+            for improvement in improvements:
+                st.warning(improvement)
