@@ -2,6 +2,9 @@ import streamlit as st
 import os
 import whisper
 import re
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from io import BytesIO
 
 def analyze_transcript(transcript, duration_seconds):
     filler_words = [
@@ -551,6 +554,112 @@ def generate_final_summary(
 
     return strengths, improvements
 
+def create_pdf_report(
+    transcript,
+    question_type,
+    detected_answer_type,
+    total_words,
+    duration_seconds,
+    filler_count,
+    filler_percentage,
+    fillers_per_minute,
+    words_per_minute,
+    confidence_score,
+    detected_skills,
+    strengths,
+    improvements
+):
+    buffer = BytesIO()
+
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+
+    y = height - 50
+
+    def add_line(text, font="Helvetica", size=11, gap=18):
+        nonlocal y
+
+        if y < 60:
+            pdf.showPage()
+            y = height - 50
+
+        pdf.setFont(font, size)
+        pdf.drawString(50, y, str(text))
+        y -= gap
+
+    def add_wrapped_text(text, font="Helvetica", size=10, max_chars=90, gap=14):
+        nonlocal y
+
+        words = str(text).split()
+        line = ""
+
+        for word in words:
+            if len(line) + len(word) + 1 <= max_chars:
+                line += word + " "
+            else:
+                add_line(line.strip(), font, size, gap)
+                line = word + " "
+
+        if line:
+            add_line(line.strip(), font, size, gap)
+
+    add_line("AI Interview Analyzer Report", "Helvetica-Bold", 16, 26)
+    add_line("=" * 70, "Helvetica", 10, 18)
+
+    add_line("Question Type Selected:", "Helvetica-Bold", 12)
+    add_line(question_type)
+
+    add_line("Detected Answer Type:", "Helvetica-Bold", 12)
+    add_line(detected_answer_type)
+
+    add_line("Transcript:", "Helvetica-Bold", 12)
+    add_wrapped_text(transcript)
+
+    y -= 10
+    add_line("Universal Communication Analysis", "Helvetica-Bold", 13, 22)
+    add_line(f"Total Words: {total_words}")
+    add_line(f"Approx Duration: {round(duration_seconds, 2)} seconds")
+    add_line(f"Filler Words Count: {filler_count}")
+    add_line(f"Filler Percentage: {round(filler_percentage, 2)}%")
+    add_line(f"Fillers Per Minute: {round(fillers_per_minute, 2)}")
+    add_line(f"Words Per Minute: {round(words_per_minute, 2)}")
+    add_line(f"Confidence Score: {confidence_score}/100")
+
+    y -= 10
+    add_line("Detected Skills", "Helvetica-Bold", 13, 22)
+    if detected_skills:
+        add_wrapped_text(", ".join(detected_skills))
+    else:
+        add_line("No major technical skills detected.")
+
+    y -= 10
+    add_line("Strengths", "Helvetica-Bold", 13, 22)
+    if strengths:
+        for strength in strengths:
+            add_wrapped_text("- " + strength)
+    else:
+        add_line("No major strengths detected.")
+
+    y -= 10
+    add_line("Areas to Improve", "Helvetica-Bold", 13, 22)
+    if improvements:
+        for improvement in improvements:
+            add_wrapped_text("- " + improvement)
+    else:
+        add_line("No major improvements suggested.")
+
+    y -= 10
+    add_line("Note", "Helvetica-Bold", 13, 22)
+    add_wrapped_text(
+        "This report is generated using speech-to-text transcription and rule-based analysis. "
+        "Results may vary depending on audio clarity, speaking style, and transcription accuracy."
+    )
+
+    pdf.save()
+
+    buffer.seek(0)
+    return buffer
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -773,3 +882,25 @@ if uploaded_file:
 
             for improvement in improvements:
                 st.warning(improvement)
+            pdf_report = create_pdf_report(
+                transcript,
+                question_type,
+                detected_answer_type,
+                total_words,
+                duration_seconds,
+                filler_count,
+                filler_percentage,
+                fillers_per_minute,
+                words_per_minute,
+                confidence_score,
+                detected_skills,
+                strengths,
+                improvements
+            )
+
+            st.download_button(
+                label="Download PDF Report",
+                data=pdf_report,
+                file_name="interview_analysis_report.pdf",
+                mime="application/pdf"
+            )
