@@ -3,4 +3,5 @@ venv/
 audio/
 reports/
 __pycache__/
+attempt_history.csv
 *.pyc

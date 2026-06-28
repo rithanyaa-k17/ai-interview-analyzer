@@ -5,6 +5,8 @@ import re
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
+import pandas as pd
+from datetime import datetime
 
 def analyze_transcript(transcript, duration_seconds):
     filler_words = [
@@ -660,6 +662,40 @@ def create_pdf_report(
     buffer.seek(0)
     return buffer
 
+def save_attempt_history(
+    question_type,
+    detected_answer_type,
+    total_words,
+    duration_seconds,
+    filler_percentage,
+    words_per_minute,
+    confidence_score,
+    detected_skills
+):
+    history_file = "attempt_history.csv"
+
+    attempt_data = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "question_type": question_type,
+        "detected_answer_type": detected_answer_type,
+        "total_words": total_words,
+        "duration_seconds": round(duration_seconds, 2),
+        "filler_percentage": round(filler_percentage, 2),
+        "words_per_minute": round(words_per_minute, 2),
+        "confidence_score": confidence_score,
+        "detected_skills": ", ".join(detected_skills) if detected_skills else "None"
+    }
+
+    new_row = pd.DataFrame([attempt_data])
+
+    if os.path.exists(history_file):
+        old_data = pd.read_csv(history_file)
+        updated_data = pd.concat([old_data, new_row], ignore_index=True)
+    else:
+        updated_data = new_row
+
+    updated_data.to_csv(history_file, index=False)
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -684,223 +720,302 @@ if uploaded_file:
     if st.button("Transcribe Audio"):
         with st.spinner("Transcribing audio... Please wait."):
             model = load_whisper_model()
-            result = model.transcribe(file_path, initial_prompt="Transcribe the speech exactly as spoken, including filler words like um, uh, like, actually, and pauses if spoken.")
-            transcript = result["text"]
-            duration_seconds = 0
-            if result.get("segments"):
-                duration_seconds = result["segments"][-1]["end"]
-            detected_answer_type = detect_answer_type(transcript)
-            st.subheader("Transcript")
-            st.write(transcript)
-            total_words, filler_count, filler_percentage, fillers_per_minute, detected_fillers = analyze_transcript(transcript,duration_seconds)
-            duration_minutes = duration_seconds / 60 if duration_seconds > 0 else 1
-            words_per_minute = total_words / duration_minutes
-            st.subheader("Universal Communication Analysis")
+            result = model.transcribe(
+                file_path,
+                initial_prompt="Transcribe the speech exactly as spoken, including filler words like um, uh, like, actually, and pauses if spoken."
+            )
 
-            st.write("Total Words:", total_words)
-            st.write("Approx Duration:", round(duration_seconds, 2), "seconds")
-            st.write("Filler Words Count:", filler_count)
-            st.write("Filler Percentage:", round(filler_percentage, 2), "%")
-            st.write("Fillers Per Minute:", round(fillers_per_minute, 2))
+        transcript = result["text"]
 
-            if detected_fillers:
-                st.write("Detected Fillers:", detected_fillers)
-            else:
-                st.success("No common filler words detected in the transcript.")
-            feedback = get_filler_feedback(filler_count, fillers_per_minute, duration_seconds)
-            st.info(feedback)
-            st.subheader("Speaking Pace Analysis")
+        duration_seconds = 0
+        if result.get("segments"):
+            duration_seconds = result["segments"][-1]["end"]
 
-            st.write("Words Per Minute:", round(words_per_minute, 2))
+        detected_answer_type = detect_answer_type(transcript)
 
-            pace_feedback = get_pace_feedback(words_per_minute)
-            st.info(pace_feedback)
-            confidence_score = calculate_confidence_score(filler_percentage,words_per_minute,total_words)
+        st.subheader("Transcript")
+        st.write(transcript)
 
-            st.subheader("Confidence Score")
+        total_words, filler_count, filler_percentage, fillers_per_minute, detected_fillers = analyze_transcript(
+            transcript,
+            duration_seconds
+        )
 
-            st.metric("Score", f"{confidence_score}/100")
+        duration_minutes = duration_seconds / 60 if duration_seconds > 0 else 1
+        words_per_minute = total_words / duration_minutes
 
-            confidence_feedback = get_confidence_feedback(confidence_score)
-            st.info(confidence_feedback)
-            st.subheader("Answer Type Check")
-            st.write("Selected Question Type:", question_type)
-            st.write("Detected Answer Type:", detected_answer_type)
+        st.subheader("Universal Communication Analysis")
 
-            if question_type != detected_answer_type:
-                st.warning(
-                    "The selected question type and detected answer type may not match. "
-                    "Some feedback sections may be less suitable for this answer."
-                )
-            else:
-                st.success("The selected question type seems suitable for this answer.")
-            detected_skills = extract_skills(transcript)
+        st.write("Total Words:", total_words)
+        st.write("Approx Duration:", round(duration_seconds, 2), "seconds")
+        st.write("Filler Words Count:", filler_count)
+        st.write("Filler Percentage:", round(filler_percentage, 2), "%")
+        st.write("Fillers Per Minute:", round(fillers_per_minute, 2))
 
-            st.subheader("Question-Specific Analysis")
+        if detected_fillers:
+            st.write("Detected Fillers:", detected_fillers)
+        else:
+            st.success("No common filler words detected in the transcript.")
 
-            if question_type == "Behavioral / Experience-based":
-                st.write("Behavioral answers are evaluated using the STAR framework.")
+        feedback = get_filler_feedback(filler_count, fillers_per_minute, duration_seconds)
+        st.info(feedback)
 
-                star_result, star_score, missing_parts = analyze_star_structure(transcript)
+        st.subheader("Speaking Pace Analysis")
 
-                st.write("STAR Score:", f"{star_score}/100")
+        st.write("Words Per Minute:", round(words_per_minute, 2))
 
-                for part, present in star_result.items():
-                    if present:
-                        st.success(f"{part}: Present")
-                    else:
-                        st.warning(f"{part}: Missing")
+        pace_feedback = get_pace_feedback(words_per_minute)
+        st.info(pace_feedback)
 
-                if missing_parts:
-                    st.info(
-                        "Suggestion: Try adding " +
-                        ", ".join(missing_parts) +
-                        " to make your answer more structured."
-                    )
+        confidence_score = calculate_confidence_score(
+            filler_percentage,
+            words_per_minute,
+            total_words
+        )
+
+        st.subheader("Confidence Score")
+
+        st.metric("Score", f"{confidence_score}/100")
+
+        confidence_feedback = get_confidence_feedback(confidence_score)
+        st.info(confidence_feedback)
+
+        st.subheader("Answer Type Check")
+
+        st.write("Selected Question Type:", question_type)
+        st.write("Detected Answer Type:", detected_answer_type)
+
+        if question_type != detected_answer_type:
+            st.warning(
+                "The selected question type and detected answer type may not match. "
+                "Some feedback sections may be less suitable for this answer."
+            )
+        else:
+            st.success("The selected question type seems suitable for this answer.")
+
+        detected_skills = extract_skills(transcript)
+
+        st.subheader("Question-Specific Analysis")
+
+        if question_type == "Behavioral / Experience-based":
+            st.write("Behavioral answers are evaluated using the STAR framework.")
+
+            star_result, star_score, missing_parts = analyze_star_structure(transcript)
+
+            st.write("STAR Score:", f"{star_score}/100")
+
+            for part, present in star_result.items():
+                if present:
+                    st.success(f"{part}: Present")
                 else:
-                    st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
+                    st.warning(f"{part}: Missing")
 
-            elif question_type == "Direct Factual Answer":
-                st.write("Direct factual answers are evaluated for conciseness, specificity, and relevance.")
-
-                length_feedback, skill_feedback, overall_feedback = analyze_direct_answer(
-                    transcript,
-                    detected_skills,
-                    total_words
-                )
-
-                st.write("Answer Length:", total_words, "words")
-                st.info(length_feedback)
-                st.info(skill_feedback)
-                st.success(overall_feedback)
-
-            elif question_type == "Project Explanation":
-                st.write("Project explanations are evaluated for problem clarity, tech stack, features, contribution, and outcome.")
-
-                project_result, project_score, missing_project_parts = analyze_project_explanation(transcript)
-
-                st.write("Project Explanation Score:", f"{project_score}/100")
-
-                for part, present in project_result.items():
-                    if present:
-                        st.success(f"{part}: Present")
-                    else:
-                        st.warning(f"{part}: Missing")
-
-                if missing_project_parts:
-                    st.info(
-                        "Suggestion: Try adding " +
-                        ", ".join(missing_project_parts) +
-                        " to make your project explanation stronger."
-                    )
-                else:
-                    st.success("Great project explanation! It covers purpose, tools, features, contribution, and outcome.")
-            elif question_type == "Technical Explanation":
-                st.write(
-                    "Technical explanations are evaluated for concept clarity, purpose, flow, "
-                    "project connection, and use of technical terms."
-                )
-
-                technical_result, technical_score, missing_technical_parts = analyze_technical_explanation(transcript)
-
-                st.write("Technical Explanation Score:", f"{technical_score}/100")
-
-                for part, present in technical_result.items():
-                    if present:
-                        st.success(f"{part}: Present")
-                    else:
-                        st.warning(f"{part}: Missing")
-
-                if missing_technical_parts:
-                    st.info(
-                        "Suggestion: Try adding " +
-                        ", ".join(missing_technical_parts) +
-                        " to make your technical explanation clearer."
-                    )
-                else:
-                    st.success(
-                        "Strong technical explanation! Your answer explains the concept, purpose, flow, "
-                        "and project relevance clearly."
-                    )
-            elif question_type == "General / Tell me about yourself":
-                st.write(
-                    "Self-introduction answers are evaluated for background, skills, projects, "
-                    "career interest, and a clear closing goal."
-                )
-
-                intro_result, intro_score, missing_intro_parts = analyze_self_intro(transcript)
-
-                st.write("Self Introduction Score:", f"{intro_score}/100")
-
-                for part, present in intro_result.items():
-                    if present:
-                        st.success(f"{part}: Present")
-                    else:
-                        st.warning(f"{part}: Missing")
-
-                if missing_intro_parts:
-                    st.info(
-                        "Suggestion: Try adding " +
-                        ", ".join(missing_intro_parts) +
-                        " to make your self-introduction stronger."
-                    )
-                else:
-                    st.success(
-                        "Strong self-introduction! Your answer covers your background, skills, projects, interests, and goal."
-                    )
-            else:
+            if missing_parts:
                 st.info(
-                    "No specialized analysis is applied for this question type yet. "
-                    "Universal communication analysis and skill extraction are still shown."
+                    "Suggestion: Try adding " +
+                    ", ".join(missing_parts) +
+                    " to make your answer more structured."
+                )
+            else:
+                st.success("Great structure! Your answer covers Situation, Task, Action, and Result.")
+
+        elif question_type == "Direct Factual Answer":
+            st.write("Direct factual answers are evaluated for conciseness, specificity, and relevance.")
+
+            length_feedback, skill_feedback, overall_feedback = analyze_direct_answer(
+                transcript,
+                detected_skills,
+                total_words
+            )
+
+            st.write("Answer Length:", total_words, "words")
+            st.info(length_feedback)
+            st.info(skill_feedback)
+            st.success(overall_feedback)
+
+        elif question_type == "Project Explanation":
+            st.write("Project explanations are evaluated for problem clarity, tech stack, features, contribution, and outcome.")
+
+            project_result, project_score, missing_project_parts = analyze_project_explanation(transcript)
+
+            st.write("Project Explanation Score:", f"{project_score}/100")
+
+            for part, present in project_result.items():
+                if present:
+                    st.success(f"{part}: Present")
+                else:
+                    st.warning(f"{part}: Missing")
+
+            if missing_project_parts:
+                st.info(
+                    "Suggestion: Try adding " +
+                    ", ".join(missing_project_parts) +
+                    " to make your project explanation stronger."
+                )
+            else:
+                st.success("Great project explanation! It covers purpose, tools, features, contribution, and outcome.")
+
+        elif question_type == "Technical Explanation":
+            st.write(
+                "Technical explanations are evaluated for concept clarity, purpose, flow, "
+                "project connection, and use of technical terms."
+            )
+
+            technical_result, technical_score, missing_technical_parts = analyze_technical_explanation(transcript)
+
+            st.write("Technical Explanation Score:", f"{technical_score}/100")
+
+            for part, present in technical_result.items():
+                if present:
+                    st.success(f"{part}: Present")
+                else:
+                    st.warning(f"{part}: Missing")
+
+            if missing_technical_parts:
+                st.info(
+                    "Suggestion: Try adding " +
+                    ", ".join(missing_technical_parts) +
+                    " to make your technical explanation clearer."
+                )
+            else:
+                st.success(
+                    "Strong technical explanation! Your answer explains the concept, purpose, flow, "
+                    "and project relevance clearly."
                 )
 
-            st.subheader("Skill Extraction")
+        elif question_type == "General / Tell me about yourself":
+            st.write(
+                "Self-introduction answers are evaluated for background, skills, projects, "
+                "career interest, and a clear closing goal."
+            )
 
-            
-            if detected_skills:
-                st.write("Detected Skills:")
-                for skill in detected_skills:
-                    st.success(skill)
+            intro_result, intro_score, missing_intro_parts = analyze_self_intro(transcript)
+
+            st.write("Self Introduction Score:", f"{intro_score}/100")
+
+            for part, present in intro_result.items():
+                if present:
+                    st.success(f"{part}: Present")
+                else:
+                    st.warning(f"{part}: Missing")
+
+            if missing_intro_parts:
+                st.info(
+                    "Suggestion: Try adding " +
+                    ", ".join(missing_intro_parts) +
+                    " to make your self-introduction stronger."
+                )
             else:
-                st.info("No major technical skills detected in the transcript.") 
-            st.subheader("Final Summary")
+                st.success(
+                    "Strong self-introduction! Your answer covers your background, skills, projects, interests, and goal."
+                )
 
-            strengths, improvements = generate_final_summary(
-                filler_percentage,
-                words_per_minute,
-                confidence_score,
-                detected_skills,
-                question_type
+        else:
+            st.info(
+                "No specialized analysis is applied for this question type yet. "
+                "Universal communication analysis and skill extraction are still shown."
             )
 
-            st.write("Strengths")
+        st.subheader("Skill Extraction")
 
-            for strength in strengths:
-                st.success(strength)
+        if detected_skills:
+            st.write("Detected Skills:")
+            for skill in detected_skills:
+                st.success(skill)
+        else:
+            st.info("No major technical skills detected in the transcript.")
 
-            st.write("Areas to Improve")
+        st.subheader("Final Summary")
 
-            for improvement in improvements:
-                st.warning(improvement)
-            pdf_report = create_pdf_report(
-                transcript,
-                question_type,
-                detected_answer_type,
-                total_words,
-                duration_seconds,
-                filler_count,
-                filler_percentage,
-                fillers_per_minute,
-                words_per_minute,
-                confidence_score,
-                detected_skills,
-                strengths,
-                improvements
-            )
+        strengths, improvements = generate_final_summary(
+            filler_percentage,
+            words_per_minute,
+            confidence_score,
+            detected_skills,
+            question_type
+        )
 
-            st.download_button(
-                label="Download PDF Report",
-                data=pdf_report,
-                file_name="interview_analysis_report.pdf",
-                mime="application/pdf"
-            )
+        st.write("Strengths")
+        for strength in strengths:
+            st.success(strength)
+
+        st.write("Areas to Improve")
+        for improvement in improvements:
+            st.warning(improvement)
+
+        pdf_report = create_pdf_report(
+            transcript,
+            question_type,
+            detected_answer_type,
+            total_words,
+            duration_seconds,
+            filler_count,
+            filler_percentage,
+            fillers_per_minute,
+            words_per_minute,
+            confidence_score,
+            detected_skills,
+            strengths,
+            improvements
+        )
+
+        st.download_button(
+            label="Download PDF Report",
+            data=pdf_report,
+            file_name="interview_analysis_report.pdf",
+            mime="application/pdf"
+        )
+
+        st.session_state["latest_attempt"] = {
+            "question_type": question_type,
+            "detected_answer_type": detected_answer_type,
+            "total_words": total_words,
+            "duration_seconds": duration_seconds,
+            "filler_percentage": filler_percentage,
+            "words_per_minute": words_per_minute,
+            "confidence_score": confidence_score,
+            "detected_skills": detected_skills
+        }
+
+
+if "latest_attempt" in st.session_state:
+    st.subheader("Save Practice Attempt")
+
+    if st.button("Save Attempt to History"):
+        attempt = st.session_state["latest_attempt"]
+
+        save_attempt_history(
+            attempt["question_type"],
+            attempt["detected_answer_type"],
+            attempt["total_words"],
+            attempt["duration_seconds"],
+            attempt["filler_percentage"],
+            attempt["words_per_minute"],
+            attempt["confidence_score"],
+            attempt["detected_skills"]
+        )
+
+        st.success("Attempt saved to history successfully!")
+        st.rerun()
+
+
+st.divider()
+st.subheader("Practice History")
+
+history_file = "attempt_history.csv"
+
+if os.path.exists(history_file):
+    history_df = pd.read_csv(history_file)
+
+    st.dataframe(history_df)
+
+    if len(history_df) >= 2:
+        st.subheader("Progress Overview")
+
+        st.line_chart(
+            history_df[["confidence_score", "filler_percentage", "words_per_minute"]]
+        )
+    else:
+        st.info("Save more attempts to view progress trends.")
+else:
+    st.info("No practice attempts saved yet.")
