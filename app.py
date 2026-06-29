@@ -696,6 +696,42 @@ def save_attempt_history(
 
     updated_data.to_csv(history_file, index=False)
 
+def generate_progress_insight(history_df):
+    if len(history_df) < 2:
+        return ["Save at least two attempts to generate progress insights."]
+
+    previous = history_df.iloc[-2]
+    latest = history_df.iloc[-1]
+
+    insights = []
+
+    confidence_diff = latest["confidence_score"] - previous["confidence_score"]
+    filler_diff = latest["filler_percentage"] - previous["filler_percentage"]
+    wpm_diff = latest["words_per_minute"] - previous["words_per_minute"]
+
+    if confidence_diff > 0:
+        insights.append(f"Confidence score improved by {round(confidence_diff, 2)} points.")
+    elif confidence_diff < 0:
+        insights.append(f"Confidence score decreased by {round(abs(confidence_diff), 2)} points.")
+    else:
+        insights.append("Confidence score stayed the same.")
+
+    if filler_diff < 0:
+        insights.append(f"Filler usage reduced by {round(abs(filler_diff), 2)}%.")
+    elif filler_diff > 0:
+        insights.append(f"Filler usage increased by {round(filler_diff, 2)}%. Try replacing fillers with short pauses.")
+    else:
+        insights.append("Filler usage stayed the same.")
+
+    if abs(wpm_diff) <= 10:
+        insights.append("Speaking pace remained fairly consistent.")
+    elif wpm_diff > 0:
+        insights.append(f"Speaking pace increased by {round(wpm_diff, 2)} WPM.")
+    else:
+        insights.append(f"Speaking pace reduced by {round(abs(wpm_diff), 2)} WPM.")
+
+    return insights
+
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base", device="cpu")
@@ -1007,14 +1043,19 @@ history_file = "attempt_history.csv"
 if os.path.exists(history_file):
     history_df = pd.read_csv(history_file)
 
-    st.dataframe(history_df)
-
     if len(history_df) >= 2:
         st.subheader("Progress Overview")
 
         st.line_chart(
-            history_df[["confidence_score", "filler_percentage", "words_per_minute"]]
-        )
+        history_df[["confidence_score", "filler_percentage", "words_per_minute"]]
+    )
+
+        st.subheader("Progress Insight")
+
+        progress_insights = generate_progress_insight(history_df)
+
+        for insight in progress_insights:
+            st.info(insight)
     else:
         st.info("Save more attempts to view progress trends.")
 else:
